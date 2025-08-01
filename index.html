@@ -2,54 +2,174 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>ICD Quick Google</title>
+  <title>ICD-10 Online Search Tool</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: auto; }
-    input, button { padding: 8px; margin: 5px 0; width: 100%; }
+    body { font-family: Arial, sans-serif; padding: 20px; max-width: 700px; margin: auto; }
+    input, button, select { padding: 8px; margin: 5px 0; width: 100%; }
     .result { background: #f9f9f9; padding: 10px; border: 1px solid #ccc; margin-top: 10px; border-radius: 5px; }
     a { text-decoration: none; color: #0645ad; }
+    .copied-msg { color: green; font-size: 0.9em; margin-top: 5px; display: none; }
+    .hint { font-size: 0.9em; color: gray; margin-top: -5px; }
+    .history { font-size: 0.9em; margin-top: 10px; }
+    .history-item { cursor: pointer; color: blue; text-decoration: underline; }
   </style>
 </head>
 <body>
-  <h2>ICD Quick Google</h2>
+  <h2>ICD-10 Online Search Assistant (Google AI Summary)</h2>
+
   <label for="diagnosis">Diagnosis (e.g. BCC, SCC, AK, MEL):</label>
   <input type="text" id="diagnosis" placeholder="Enter diagnosis abbreviation or full name">
+  <div class="hint">Common abbreviations will be automatically expanded, even if followed by descriptors or separated by commas.</div>
 
   <label for="location">Body Location (e.g. cheek, scalp, arm):</label>
   <input type="text" id="location" placeholder="Enter body site">
 
-  <button onclick="searchICD10()">🔍 Search ICD-10 on Google</button>
+  <button onclick="searchAndCopy()">🔍 Search & 📋 Copy</button>
+  <button onclick="copyDiagnosisToClipboard()">📋 Copy Only</button>
+  <button onclick="searchICD10Only()">🔍 Search Only</button>
+  <div id="copied" class="copied-msg"></div>
 
   <div id="result" class="result" style="display:none;"></div>
 
-  <script>
-    function searchICD10() {
-      const diag = document.getElementById("diagnosis").value.trim();
-      const loc = document.getElementById("location").value.trim();
+  <div class="history">
+    <strong>Recent Searches:</strong>
+    <ul id="historyList"></ul>
+  </div>
 
-      if (!diag || !loc) {
+  <script>
+    const diagnosisMap = {
+      "BCC": "basal cell carcinoma",
+      "SCC": "squamous cell carcinoma",
+      "AK": "actinic keratosis",
+      "MEL": "melanoma",
+      "SK": "seborrheic keratosis",
+      "DF": "dermatofibroma",
+      "KA": "keratoacanthoma"
+    };
+
+    function expandDiagnosis(input) {
+      const parts = input.split(',');
+      const firstWord = parts[0].trim().toUpperCase();
+      const expanded = diagnosisMap[firstWord] || firstWord;
+      const rest = parts.slice(1).map(s => s.trim()).filter(Boolean);
+      return [expanded, ...rest].join(', ');
+    }
+
+    function getPrompt(expandedDiag, loc) {
+      return `icd 10 code for ${expandedDiag} at skin of ${loc}`;
+    }
+
+    function updateHistory(rawDiag, loc) {
+      const history = JSON.parse(localStorage.getItem("icd10_history") || "[]");
+      const entry = `${rawDiag} @ ${loc}`;
+      if (!history.includes(entry)) {
+        history.unshift(entry);
+        if (history.length > 5) history.pop();
+        localStorage.setItem("icd10_history", JSON.stringify(history));
+      }
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const history = JSON.parse(localStorage.getItem("icd10_history") || "[]");
+      const list = document.getElementById("historyList");
+      list.innerHTML = "";
+      history.forEach(item => {
+        const li = document.createElement("li");
+        li.innerText = item;
+        li.className = "history-item";
+        li.onclick = () => {
+          const [diag, loc] = item.split(" @ ");
+          document.getElementById("diagnosis").value = diag;
+          document.getElementById("location").value = loc;
+        };
+        list.appendChild(li);
+      });
+    }
+
+    function searchAndCopy() {
+      const rawDiag = document.getElementById("diagnosis").value.trim();
+      const loc = document.getElementById("location").value.trim();
+      if (!rawDiag || !loc) {
         alert("Please enter both diagnosis and location.");
         return;
       }
-
-      const prompt = `icd 10 code for ${diag} at skin of ${loc}`;
+      const expandedDiag = expandDiagnosis(rawDiag);
+      const prompt = getPrompt(expandedDiag, loc);
       const query = encodeURIComponent(prompt);
       const url = `https://www.google.com/search?q=${query}`;
 
-      // Auto-open result tab
+      navigator.clipboard.writeText(expandedDiag)
+        .then(() => {
+          const copiedMsg = document.getElementById("copied");
+          copiedMsg.innerText = `✅ Copied "${expandedDiag}" to clipboard!`;
+          copiedMsg.style.display = "block";
+          setTimeout(() => copiedMsg.style.display = "none", 2000);
+        })
+        .catch(err => alert("Copy failed: " + err));
+
       window.open(url, '_blank');
 
-      // Display link in-page
       const resultDiv = document.getElementById("result");
-      resultDiv.innerHTML = `<p>Result opened in a new tab:</p><p><a href="${url}" target="_blank">🔗 ${url}</a></p>`;
+      resultDiv.innerHTML = `<p>Result opened in a new tab:</p><p><strong>Expanded diagnosis:</strong> ${expandedDiag}</p><p><a href="${url}" target="_blank">🔗 ${url}</a></p>`;
       resultDiv.style.display = "block";
+
+      updateHistory(rawDiag, loc);
     }
 
-    // Enable Enter key to trigger search
+    function copyDiagnosisToClipboard() {
+      const rawDiag = document.getElementById("diagnosis").value.trim();
+      if (!rawDiag) {
+        alert("Please enter a diagnosis before copying.");
+        return;
+      }
+      const expandedDiag = expandDiagnosis(rawDiag);
+      navigator.clipboard.writeText(expandedDiag)
+        .then(() => {
+          const copiedMsg = document.getElementById("copied");
+          copiedMsg.innerText = `✅ Copied "${expandedDiag}" to clipboard!`;
+          copiedMsg.style.display = "block";
+          setTimeout(() => copiedMsg.style.display = "none", 2000);
+        })
+        .catch(err => alert("Copy failed: " + err));
+    }
+
+    function searchICD10Only() {
+      const rawDiag = document.getElementById("diagnosis").value.trim();
+      const loc = document.getElementById("location").value.trim();
+      if (!rawDiag || !loc) {
+        alert("Please enter both diagnosis and location.");
+        return;
+      }
+      const expandedDiag = expandDiagnosis(rawDiag);
+      const prompt = getPrompt(expandedDiag, loc);
+      const query = encodeURIComponent(prompt);
+      const url = `https://www.google.com/search?q=${query}`;
+
+      window.open(url, '_blank');
+
+      const resultDiv = document.getElementById("result");
+      resultDiv.innerHTML = `<p>Result opened in a new tab:</p><p><strong>Expanded diagnosis:</strong> ${expandedDiag}</p><p><a href="${url}" target="_blank">🔗 ${url}</a></p>`;
+      resultDiv.style.display = "block";
+
+      updateHistory(rawDiag, loc);
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      navigator.clipboard.readText()
+        .then(text => {
+          if (text && text.length < 80) {
+            document.getElementById("diagnosis").value = text;
+          }
+        })
+        .catch(() => {});
+      renderHistory();
+    });
+
     document.addEventListener("keydown", function(event) {
       if (event.key === "Enter") {
         event.preventDefault();
-        searchICD10();
+        searchAndCopy();
       }
     });
   </script>

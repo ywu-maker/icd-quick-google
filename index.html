@@ -12,21 +12,35 @@
     .hint { font-size: 0.9em; color: gray; margin-top: -5px; }
     .history { font-size: 0.9em; margin-top: 10px; }
     .history-item { cursor: pointer; color: blue; text-decoration: underline; }
+    .quick-links { margin-top: 15px; display: flex; gap: 10px; flex-direction: column; }
+    .quick-links button { width: auto; padding: 6px 10px; font-size: 0.9em; }
   </style>
 </head>
 <body>
   <h2>ICD-10 Online Search Assistant (Google AI Summary)</h2>
 
   <label for="diagnosis">Diagnosis (e.g. BCC, SCC, AK, MEL):</label>
-  <input type="text" id="diagnosis" placeholder="Enter diagnosis abbreviation or full name">
-  <div class="hint">Common abbreviations will be automatically expanded, even if followed by descriptors or separated by commas.</div>
+  <input type="text" id="diagnosis" placeholder="Enter diagnosis abbreviation or full name" list="diagnosisList" autocomplete="off">
+  <datalist id="diagnosisList"></datalist>
+  <div class="hint">Common abbreviations will be automatically expanded, even if followed by descriptors or separated by commas. Multiple diagnoses can be separated by semicolons.</div>
 
   <label for="location">Body Location (e.g. cheek, scalp, arm):</label>
   <input type="text" id="location" placeholder="Enter body site">
 
+  <label for="engine">Search Engine:</label>
+  <select id="engine">
+    <option value="google">Google</option>
+    <option value="bing">Bing</option>
+    <option value="duckduckgo">DuckDuckGo</option>
+  </select>
+
   <button onclick="searchAndCopy()">🔍 Search & 📋 Copy</button>
   <button onclick="copyDiagnosisToClipboard()">📋 Copy Only</button>
   <button onclick="searchICD10Only()">🔍 Search Only</button>
+  <div class="quick-links">
+    <button onclick="openICD10Data()">🔗 Search on ICD10Data.com</button>
+    <button onclick="openPubMed()">🔗 Search on PubMed</button>
+  </div>
   <div id="copied" class="copied-msg"></div>
 
   <div id="result" class="result" style="display:none;"></div>
@@ -44,19 +58,30 @@
       "MEL": "melanoma",
       "SK": "seborrheic keratosis",
       "DF": "dermatofibroma",
-      "KA": "keratoacanthoma"
+      "KA": "keratoacanthoma",
+      "FEP": "fibroepithelial polyp"
     };
 
     function expandDiagnosis(input) {
-      const parts = input.split(',');
-      const firstWord = parts[0].trim().toUpperCase();
-      const expanded = diagnosisMap[firstWord] || firstWord;
-      const rest = parts.slice(1).map(s => s.trim()).filter(Boolean);
-      return [expanded, ...rest].join(', ');
+      return input.split(';').map(part => {
+        const subparts = part.split(',');
+        const firstWord = subparts[0].trim();
+        const firstWordUpper = firstWord.toUpperCase();
+        const expanded = diagnosisMap[firstWordUpper] || firstWord;
+        const rest = subparts.slice(1).map(s => s.trim()).filter(Boolean);
+        return [expanded, ...rest].join(', ');
+      }).join('; ');
     }
 
     function getPrompt(expandedDiag, loc) {
       return `icd 10 code for ${expandedDiag} at skin of ${loc}`;
+    }
+
+    function getSearchURL(engine, query) {
+      const encoded = encodeURIComponent(query);
+      if (engine === 'bing') return `https://www.bing.com/search?q=${encoded}`;
+      if (engine === 'duckduckgo') return `https://duckduckgo.com/?q=${encoded}`;
+      return `https://www.google.com/search?q=${encoded}`;
     }
 
     function updateHistory(rawDiag, loc) {
@@ -90,14 +115,14 @@
     function searchAndCopy() {
       const rawDiag = document.getElementById("diagnosis").value.trim();
       const loc = document.getElementById("location").value.trim();
+      const engine = document.getElementById("engine").value;
       if (!rawDiag || !loc) {
         alert("Please enter both diagnosis and location.");
         return;
       }
       const expandedDiag = expandDiagnosis(rawDiag);
       const prompt = getPrompt(expandedDiag, loc);
-      const query = encodeURIComponent(prompt);
-      const url = `https://www.google.com/search?q=${query}`;
+      const url = getSearchURL(engine, prompt);
 
       navigator.clipboard.writeText(expandedDiag)
         .then(() => {
@@ -137,14 +162,14 @@
     function searchICD10Only() {
       const rawDiag = document.getElementById("diagnosis").value.trim();
       const loc = document.getElementById("location").value.trim();
+      const engine = document.getElementById("engine").value;
       if (!rawDiag || !loc) {
         alert("Please enter both diagnosis and location.");
         return;
       }
       const expandedDiag = expandDiagnosis(rawDiag);
       const prompt = getPrompt(expandedDiag, loc);
-      const query = encodeURIComponent(prompt);
-      const url = `https://www.google.com/search?q=${query}`;
+      const url = getSearchURL(engine, prompt);
 
       window.open(url, '_blank');
 
@@ -153,6 +178,22 @@
       resultDiv.style.display = "block";
 
       updateHistory(rawDiag, loc);
+    }
+
+    function openICD10Data() {
+      const expandedDiag = expandDiagnosis(document.getElementById("diagnosis").value.trim());
+      if (expandedDiag) {
+        const url = `https://www.icd10data.com/search?s=${encodeURIComponent(expandedDiag)}`;
+        window.open(url, '_blank');
+      }
+    }
+
+    function openPubMed() {
+      const expandedDiag = expandDiagnosis(document.getElementById("diagnosis").value.trim());
+      if (expandedDiag) {
+        const url = `https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(expandedDiag)}`;
+        window.open(url, '_blank');
+      }
     }
 
     document.addEventListener("DOMContentLoaded", () => {
@@ -164,6 +205,15 @@
         })
         .catch(() => {});
       renderHistory();
+
+      const list = document.getElementById("diagnosisList");
+      Object.entries(diagnosisMap).forEach(([abbr, full]) => {
+        new Set([abbr, full]).forEach(val => {
+          const opt = document.createElement("option");
+          opt.value = val;
+          list.appendChild(opt);
+        });
+      });
     });
 
     document.addEventListener("keydown", function(event) {

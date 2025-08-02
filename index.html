@@ -59,8 +59,14 @@
       "SK": "seborrheic keratosis",
       "DF": "dermatofibroma",
       "KA": "keratoacanthoma",
-      "FEP": "fibroepithelial polyp"
+      "FEP": "fibroepithelial polyp",
+      "CN": "compound nevus",
+      "BLK": "benign lichenoid keratosis"
     };
+
+    function capitalizeEachWord(str) {
+      return str.replace(/\b\w+/g, word => word.charAt(0).toUpperCase() + word.slice(1));
+    }
 
     function expandDiagnosis(input) {
       return input.split(';').map(part => {
@@ -121,22 +127,29 @@
         return;
       }
       const expandedDiag = expandDiagnosis(rawDiag);
-      const prompt = getPrompt(expandedDiag, loc);
+      const capitalizedDiag = capitalizeEachWord(expandedDiag);
+      const prompt = getPrompt(capitalizedDiag, loc);
       const url = getSearchURL(engine, prompt);
 
-      navigator.clipboard.writeText(expandedDiag)
+      navigator.clipboard.writeText(capitalizedDiag)
         .then(() => {
           const copiedMsg = document.getElementById("copied");
-          copiedMsg.innerText = `✅ Copied "${expandedDiag}" to clipboard!`;
+          copiedMsg.innerText = `✅ Copied "${capitalizedDiag}" to clipboard!`;
           copiedMsg.style.display = "block";
           setTimeout(() => copiedMsg.style.display = "none", 2000);
         })
         .catch(err => alert("Copy failed: " + err));
 
-      window.open(url, '_blank');
+      const newTab = document.createElement("a");
+      newTab.href = url;
+      newTab.target = "_blank";
+      newTab.rel = "noopener noreferrer";
+      document.body.appendChild(newTab);
+      newTab.click();
+      document.body.removeChild(newTab);
 
       const resultDiv = document.getElementById("result");
-      resultDiv.innerHTML = `<p>Result opened in a new tab:</p><p><strong>Expanded diagnosis:</strong> ${expandedDiag}</p><p><a href="${url}" target="_blank">🔗 ${url}</a></p>`;
+      resultDiv.innerHTML = `<p>Result opened in a new tab:</p><p><strong>Expanded diagnosis:</strong> ${capitalizedDiag}</p><p><a href="${url}" target="_blank">🔗 ${url}</a></p>`;
       resultDiv.style.display = "block";
 
       updateHistory(rawDiag, loc);
@@ -149,10 +162,11 @@
         return;
       }
       const expandedDiag = expandDiagnosis(rawDiag);
-      navigator.clipboard.writeText(expandedDiag)
+      const capitalizedDiag = capitalizeEachWord(expandedDiag);
+      navigator.clipboard.writeText(capitalizedDiag)
         .then(() => {
           const copiedMsg = document.getElementById("copied");
-          copiedMsg.innerText = `✅ Copied "${expandedDiag}" to clipboard!`;
+          copiedMsg.innerText = `✅ Copied "${capitalizedDiag}" to clipboard!`;
           copiedMsg.style.display = "block";
           setTimeout(() => copiedMsg.style.display = "none", 2000);
         })
@@ -168,13 +182,20 @@
         return;
       }
       const expandedDiag = expandDiagnosis(rawDiag);
-      const prompt = getPrompt(expandedDiag, loc);
+      const capitalizedDiag = capitalizeEachWord(expandedDiag);
+      const prompt = getPrompt(capitalizedDiag, loc);
       const url = getSearchURL(engine, prompt);
 
-      window.open(url, '_blank');
+      const newTab = document.createElement("a");
+      newTab.href = url;
+      newTab.target = "_blank";
+      newTab.rel = "noopener noreferrer";
+      document.body.appendChild(newTab);
+      newTab.click();
+      document.body.removeChild(newTab);
 
       const resultDiv = document.getElementById("result");
-      resultDiv.innerHTML = `<p>Result opened in a new tab:</p><p><strong>Expanded diagnosis:</strong> ${expandedDiag}</p><p><a href="${url}" target="_blank">🔗 ${url}</a></p>`;
+      resultDiv.innerHTML = `<p>Result opened in a new tab:</p><p><strong>Expanded diagnosis:</strong> ${capitalizedDiag}</p><p><a href="${url}" target="_blank">🔗 ${url}</a></p>`;
       resultDiv.style.display = "block";
 
       updateHistory(rawDiag, loc);
@@ -184,7 +205,13 @@
       const expandedDiag = expandDiagnosis(document.getElementById("diagnosis").value.trim());
       if (expandedDiag) {
         const url = `https://www.icd10data.com/search?s=${encodeURIComponent(expandedDiag)}`;
-        window.open(url, '_blank');
+        const newTab = document.createElement("a");
+        newTab.href = url;
+        newTab.target = "_blank";
+        newTab.rel = "noopener noreferrer";
+        document.body.appendChild(newTab);
+        newTab.click();
+        document.body.removeChild(newTab);
       }
     }
 
@@ -192,7 +219,13 @@
       const expandedDiag = expandDiagnosis(document.getElementById("diagnosis").value.trim());
       if (expandedDiag) {
         const url = `https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(expandedDiag)}`;
-        window.open(url, '_blank');
+        const newTab = document.createElement("a");
+        newTab.href = url;
+        newTab.target = "_blank";
+        newTab.rel = "noopener noreferrer";
+        document.body.appendChild(newTab);
+        newTab.click();
+        document.body.removeChild(newTab);
       }
     }
 

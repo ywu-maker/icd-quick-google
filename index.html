@@ -70,13 +70,19 @@
       'ISK': 'Inflamed Seborrheic Keratosis'
     };
 
+    function capitalizeEachWord(text) {
+      return text
+        .toLowerCase()
+        .replace(/\b\w/g, c => c.toUpperCase());
+    }
+
     function expandDiagnosis(rawText) {
       return rawText.split(';').map(item => {
         let parts = item.trim().split(',');
-        let abbrev = parts[0].trim().toUpperCase();
+        let abbrev = parts[0].trim();
+        let key = abbrev.toUpperCase();
         let rest = parts.slice(1).join(',').trim();
-        let full = diagnosisMap[abbrev] || abbrev;
-        full = full.replace(/\b\w/g, l => l.toUpperCase());
+        let full = diagnosisMap[key] || capitalizeEachWord(abbrev);
         return rest ? `${full}, ${rest}` : full;
       }).join('; ');
     }

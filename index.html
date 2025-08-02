@@ -14,24 +14,32 @@
     .history-item { cursor: pointer; color: blue; text-decoration: underline; }
     .quick-links { margin-top: 15px; display: flex; gap: 10px; flex-direction: column; }
     .quick-links button { width: auto; padding: 6px 10px; font-size: 0.9em; }
+    .suggestion { font-size: 0.85em; color: orange; margin-top: 5px; display: none; }
   </style>
 </head>
 <body>
   <h2>ICD-10 Online Search Assistant (Google AI Summary)</h2>
 
   <label for="diagnosis">Diagnosis (e.g. BCC, SCC, AK, MEL):</label>
-  <input type="text" id="diagnosis" placeholder="Enter diagnosis abbreviation or full name" list="diagnosisList" autocomplete="off">
+  <input type="text" id="diagnosis" placeholder="Enter diagnosis abbreviation or full name" list="diagnosisList" autocomplete="off" spellcheck="true" autocorrect="on">
   <datalist id="diagnosisList"></datalist>
   <div class="hint">Common abbreviations will be automatically expanded, even if followed by descriptors or separated by commas. Multiple diagnoses can be separated by semicolons.</div>
+  <div id="suggestionBox" class="suggestion"></div>
 
   <label for="location">Body Location (e.g. cheek, scalp, arm):</label>
-  <input type="text" id="location" placeholder="Enter body site">
+  <input type="text" id="location" placeholder="Enter body site" spellcheck="true" autocorrect="on">
 
   <label for="engine">Search Engine:</label>
   <select id="engine">
     <option value="google">Google</option>
     <option value="bing">Bing</option>
     <option value="duckduckgo">DuckDuckGo</option>
+  </select>
+
+  <label for="tabOption">Open Behavior:</label>
+  <select id="tabOption">
+    <option value="background">Open in Background Tab</option>
+    <option value="foreground">Open in Current Tab</option>
   </select>
 
   <button onclick="searchAndCopy()">🔍 Search & 📋 Copy</button>
@@ -52,209 +60,119 @@
 
   <script>
     const diagnosisMap = {
-      "BCC": "basal cell carcinoma",
-      "SCC": "squamous cell carcinoma",
-      "AK": "actinic keratosis",
-      "MEL": "melanoma",
-      "SK": "seborrheic keratosis",
-      "DF": "dermatofibroma",
-      "KA": "keratoacanthoma",
-      "FEP": "fibroepithelial polyp",
-      "CN": "compound nevus",
-      "BLK": "benign lichenoid keratosis"
+      'BCC': 'Basal Cell Carcinoma',
+      'SCC': 'Squamous Cell Carcinoma',
+      'AK': 'Actinic Keratosis',
+      'MEL': 'Melanoma',
+      'FEP': 'Fibroepithelial Polyp',
+      'CN': 'Compound Nevus',
+      'BLK': 'Benign Lichenoid Keratosis',
+      'ISK': 'Inflamed Seborrheic Keratosis'
     };
 
-    function capitalizeEachWord(str) {
-      return str.replace(/\b\w+/g, word => word.charAt(0).toUpperCase() + word.slice(1));
-    }
-
-    function expandDiagnosis(input) {
-      return input.split(';').map(part => {
-        const subparts = part.split(',');
-        const firstWord = subparts[0].trim();
-        const firstWordUpper = firstWord.toUpperCase();
-        const expanded = diagnosisMap[firstWordUpper] || firstWord;
-        const rest = subparts.slice(1).map(s => s.trim()).filter(Boolean);
-        return [expanded, ...rest].join(', ');
+    function expandDiagnosis(rawText) {
+      return rawText.split(';').map(item => {
+        let parts = item.trim().split(',');
+        let abbrev = parts[0].trim().toUpperCase();
+        let rest = parts.slice(1).join(',').trim();
+        let full = diagnosisMap[abbrev] || abbrev;
+        full = full.replace(/\b\w/g, l => l.toUpperCase());
+        return rest ? `${full}, ${rest}` : full;
       }).join('; ');
     }
 
-    function getPrompt(expandedDiag, loc) {
-      return `icd 10 code for ${expandedDiag} at skin of ${loc}`;
+    function searchAndCopy() {
+      const diagnosisInput = document.getElementById("diagnosis").value;
+      const location = document.getElementById("location").value;
+      const engine = document.getElementById("engine").value;
+      const tabBehavior = document.getElementById("tabOption").value;
+      const expanded = expandDiagnosis(diagnosisInput);
+
+      const searchQuery = `ICD 10 code for ${expanded} at ${location}`;
+      navigator.clipboard.writeText(expanded);
+      document.getElementById("copied").innerText = `Copied: ${expanded}`;
+      document.getElementById("copied").style.display = 'block';
+
+      let url;
+      if (engine === 'google') url = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
+      else if (engine === 'bing') url = `https://www.bing.com/search?q=${encodeURIComponent(searchQuery)}`;
+      else url = `https://duckduckgo.com/?q=${encodeURIComponent(searchQuery)}`;
+
+      if (tabBehavior === 'background') window.open(url, '_blank');
+      else window.location.href = url;
+
+      saveToHistory(searchQuery);
     }
 
-    function getSearchURL(engine, query) {
-      const encoded = encodeURIComponent(query);
-      if (engine === 'bing') return `https://www.bing.com/search?q=${encoded}`;
-      if (engine === 'duckduckgo') return `https://duckduckgo.com/?q=${encoded}`;
-      return `https://www.google.com/search?q=${encoded}`;
+    function copyDiagnosisToClipboard() {
+      const diagnosisInput = document.getElementById("diagnosis").value;
+      const expanded = expandDiagnosis(diagnosisInput);
+      navigator.clipboard.writeText(expanded);
+      document.getElementById("copied").innerText = `Copied: ${expanded}`;
+      document.getElementById("copied").style.display = 'block';
     }
 
-    function updateHistory(rawDiag, loc) {
-      const history = JSON.parse(localStorage.getItem("icd10_history") || "[]");
-      const entry = `${rawDiag} @ ${loc}`;
-      if (!history.includes(entry)) {
-        history.unshift(entry);
-        if (history.length > 5) history.pop();
-        localStorage.setItem("icd10_history", JSON.stringify(history));
-      }
+    function searchICD10Only() {
+      const diagnosisInput = document.getElementById("diagnosis").value;
+      const location = document.getElementById("location").value;
+      const engine = document.getElementById("engine").value;
+      const searchQuery = `ICD 10 code for ${expandDiagnosis(diagnosisInput)} at ${location}`;
+
+      let url;
+      if (engine === 'google') url = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
+      else if (engine === 'bing') url = `https://www.bing.com/search?q=${encodeURIComponent(searchQuery)}`;
+      else url = `https://duckduckgo.com/?q=${encodeURIComponent(searchQuery)}`;
+
+      const tabBehavior = document.getElementById("tabOption").value;
+      if (tabBehavior === 'background') window.open(url, '_blank');
+      else window.location.href = url;
+
+      saveToHistory(searchQuery);
+    }
+
+    function openICD10Data() {
+      const diagnosisInput = document.getElementById("diagnosis").value;
+      const search = encodeURIComponent(expandDiagnosis(diagnosisInput));
+      window.open(`https://www.icd10data.com/search?s=${search}`, '_blank');
+    }
+
+    function openPubMed() {
+      const diagnosisInput = document.getElementById("diagnosis").value;
+      const search = encodeURIComponent(expandDiagnosis(diagnosisInput));
+      window.open(`https://pubmed.ncbi.nlm.nih.gov/?term=${search}`, '_blank');
+    }
+
+    function saveToHistory(query) {
+      let history = JSON.parse(localStorage.getItem("icd_history") || "[]");
+      history.unshift(query);
+      history = history.slice(0, 15);
+      localStorage.setItem("icd_history", JSON.stringify(history));
       renderHistory();
     }
 
     function renderHistory() {
-      const history = JSON.parse(localStorage.getItem("icd10_history") || "[]");
-      const list = document.getElementById("historyList");
-      list.innerHTML = "";
+      const historyList = document.getElementById("historyList");
+      const history = JSON.parse(localStorage.getItem("icd_history") || "[]");
+      historyList.innerHTML = '';
       history.forEach(item => {
         const li = document.createElement("li");
-        li.innerText = item;
+        li.textContent = item;
         li.className = "history-item";
         li.onclick = () => {
-          const [diag, loc] = item.split(" @ ");
-          document.getElementById("diagnosis").value = diag;
-          document.getElementById("location").value = loc;
+          document.getElementById("diagnosis").value = item;
         };
-        list.appendChild(li);
+        historyList.appendChild(li);
       });
     }
 
-    function searchAndCopy() {
-      const rawDiag = document.getElementById("diagnosis").value.trim();
-      const loc = document.getElementById("location").value.trim();
-      const engine = document.getElementById("engine").value;
-      if (!rawDiag || !loc) {
-        alert("Please enter both diagnosis and location.");
-        return;
-      }
-      const expandedDiag = expandDiagnosis(rawDiag);
-      const capitalizedDiag = capitalizeEachWord(expandedDiag);
-      const prompt = getPrompt(capitalizedDiag, loc);
-      const url = getSearchURL(engine, prompt);
-
-      navigator.clipboard.writeText(capitalizedDiag)
-        .then(() => {
-          const copiedMsg = document.getElementById("copied");
-          copiedMsg.innerText = `✅ Copied "${capitalizedDiag}" to clipboard!`;
-          copiedMsg.style.display = "block";
-          setTimeout(() => copiedMsg.style.display = "none", 2000);
-        })
-        .catch(err => alert("Copy failed: " + err));
-
-      const newTab = document.createElement("a");
-      newTab.href = url;
-      newTab.target = "_blank";
-      newTab.rel = "noopener noreferrer";
-      document.body.appendChild(newTab);
-      newTab.click();
-      document.body.removeChild(newTab);
-
-      const resultDiv = document.getElementById("result");
-      resultDiv.innerHTML = `<p>Result opened in a new tab:</p><p><strong>Expanded diagnosis:</strong> ${capitalizedDiag}</p><p><a href="${url}" target="_blank">🔗 ${url}</a></p>`;
-      resultDiv.style.display = "block";
-
-      updateHistory(rawDiag, loc);
-    }
-
-    function copyDiagnosisToClipboard() {
-      const rawDiag = document.getElementById("diagnosis").value.trim();
-      if (!rawDiag) {
-        alert("Please enter a diagnosis before copying.");
-        return;
-      }
-      const expandedDiag = expandDiagnosis(rawDiag);
-      const capitalizedDiag = capitalizeEachWord(expandedDiag);
-      navigator.clipboard.writeText(capitalizedDiag)
-        .then(() => {
-          const copiedMsg = document.getElementById("copied");
-          copiedMsg.innerText = `✅ Copied "${capitalizedDiag}" to clipboard!`;
-          copiedMsg.style.display = "block";
-          setTimeout(() => copiedMsg.style.display = "none", 2000);
-        })
-        .catch(err => alert("Copy failed: " + err));
-    }
-
-    function searchICD10Only() {
-      const rawDiag = document.getElementById("diagnosis").value.trim();
-      const loc = document.getElementById("location").value.trim();
-      const engine = document.getElementById("engine").value;
-      if (!rawDiag || !loc) {
-        alert("Please enter both diagnosis and location.");
-        return;
-      }
-      const expandedDiag = expandDiagnosis(rawDiag);
-      const capitalizedDiag = capitalizeEachWord(expandedDiag);
-      const prompt = getPrompt(capitalizedDiag, loc);
-      const url = getSearchURL(engine, prompt);
-
-      const newTab = document.createElement("a");
-      newTab.href = url;
-      newTab.target = "_blank";
-      newTab.rel = "noopener noreferrer";
-      document.body.appendChild(newTab);
-      newTab.click();
-      document.body.removeChild(newTab);
-
-      const resultDiv = document.getElementById("result");
-      resultDiv.innerHTML = `<p>Result opened in a new tab:</p><p><strong>Expanded diagnosis:</strong> ${capitalizedDiag}</p><p><a href="${url}" target="_blank">🔗 ${url}</a></p>`;
-      resultDiv.style.display = "block";
-
-      updateHistory(rawDiag, loc);
-    }
-
-    function openICD10Data() {
-      const expandedDiag = expandDiagnosis(document.getElementById("diagnosis").value.trim());
-      if (expandedDiag) {
-        const url = `https://www.icd10data.com/search?s=${encodeURIComponent(expandedDiag)}`;
-        const newTab = document.createElement("a");
-        newTab.href = url;
-        newTab.target = "_blank";
-        newTab.rel = "noopener noreferrer";
-        document.body.appendChild(newTab);
-        newTab.click();
-        document.body.removeChild(newTab);
-      }
-    }
-
-    function openPubMed() {
-      const expandedDiag = expandDiagnosis(document.getElementById("diagnosis").value.trim());
-      if (expandedDiag) {
-        const url = `https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(expandedDiag)}`;
-        const newTab = document.createElement("a");
-        newTab.href = url;
-        newTab.target = "_blank";
-        newTab.rel = "noopener noreferrer";
-        document.body.appendChild(newTab);
-        newTab.click();
-        document.body.removeChild(newTab);
-      }
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-      navigator.clipboard.readText()
-        .then(text => {
-          if (text && text.length < 80) {
-            document.getElementById("diagnosis").value = text;
-          }
-        })
-        .catch(() => {});
-      renderHistory();
-
-      const list = document.getElementById("diagnosisList");
-      Object.entries(diagnosisMap).forEach(([abbr, full]) => {
-        new Set([abbr, full]).forEach(val => {
-          const opt = document.createElement("option");
-          opt.value = val;
-          list.appendChild(opt);
-        });
-      });
-    });
-
-    document.addEventListener("keydown", function(event) {
-      if (event.key === "Enter") {
-        event.preventDefault();
+    document.getElementById("diagnosis").addEventListener("keydown", function(e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
         searchAndCopy();
       }
     });
+
+    renderHistory();
   </script>
 </body>
 </html>

@@ -94,7 +94,7 @@
       const tabBehavior = document.getElementById("tabOption").value;
       const expanded = expandDiagnosis(diagnosisInput);
 
-      const searchQuery = `ICD 10 code for ${expanded} at ${location}`;
+      const searchQuery = `ICD 10 code for ${expanded} of skin of ${location}`;
       navigator.clipboard.writeText(expanded);
       document.getElementById("copied").innerText = `Copied: ${expanded}`;
       document.getElementById("copied").style.display = 'block';
